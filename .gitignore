@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+dist/
+build/
+*.egg-info/
+.pytest_cache/
+.python-version
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store
+
+# Never commit OAuth material
+credentials.json
+token*.json

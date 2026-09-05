@@ -1,0 +1,52 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "gworkspace"
+dynamic = ["version"]
+description = "Google Workspace CLI for humans and agents: Gmail, Calendar, People, Drive"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.11"
+authors = [{ name = "Alexander Ledovsky" }]
+keywords = ["google", "workspace", "gmail", "calendar", "drive", "cli", "agent"]
+classifiers = [
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: End Users/Desktop",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Communications :: Email",
+    "Topic :: Office/Business :: Scheduling",
+    "Topic :: Utilities",
+]
+dependencies = [
+    "google-api-python-client>=2.150",
+    "google-auth-httplib2>=0.2",
+    "google-auth-oauthlib>=1.2",
+]
+
+[project.urls]
+Homepage = "https://github.com/ledovsky/gworkspace"
+Issues = "https://github.com/ledovsky/gworkspace/issues"
+
+[project.scripts]
+gworkspace = "gworkspace.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.hatch.version]
+path = "src/gworkspace/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/gworkspace"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/gworkspace", "tests", "skills", "README.md", "LICENSE", "pyproject.toml"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
