@@ -100,7 +100,8 @@ def _zoom_plain_text(meeting: dict) -> str:
 
 
 def calendar_create(creds, title: str, start: str, end: str, attendees: list[str],
-                    description: str = "", all_day: bool = False, conferencing: str = "meet"):
+                    description: str = "", all_day: bool = False, conferencing: str = "meet",
+                    timezone_name: str | None = None):
     """Create an event on the primary calendar.
 
     conferencing: "meet" (Google Meet via Calendar's own createRequest), "zoom" (meeting minted via
@@ -128,7 +129,7 @@ def calendar_create(creds, title: str, start: str, end: str, attendees: list[str
     else:
         if not end:
             raise ValueError("--end is required for timed events (or pass --all-day)")
-        tz_name = _local_tz_name()
+        tz_name = timezone_name or _local_tz_name()
         body = {
             "summary": title,
             "start": {"dateTime": start, "timeZone": tz_name},
@@ -262,9 +263,9 @@ def calendar_cancel(creds, event_id: str):
     print(f"Cancelled event {event_id}.")
 
 
-def calendar_reschedule(creds, event_id: str, start: str, end: str):
+def calendar_reschedule(creds, event_id: str, start: str, end: str, timezone_name: str | None = None):
     svc = _service(creds)
-    tz_name = _local_tz_name()
+    tz_name = timezone_name or _local_tz_name()
     cal_id, event = _find_event(svc, event_id)
     if event is None:
         print(f"Event {event_id} not found.")

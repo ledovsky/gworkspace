@@ -46,3 +46,14 @@ def test_calendar_create_conferencing_choices():
     with pytest.raises(SystemExit):
         parse(["calendar", "create", "--profile", "p", "--title", "t", "--start", "x",
                "--conferencing", "teams"])
+
+
+def test_calendar_timezone_flags():
+    create = parse(["calendar", "create", "--profile", "p", "--title", "t",
+                    "--start", "2026-01-01T10:00", "--end", "2026-01-01T10:30",
+                    "--timezone", "Europe/Moscow"])
+    assert create.timezone == "Europe/Moscow"
+    reschedule = parse(["calendar", "reschedule", "--profile", "p", "event-id",
+                        "--start", "2026-01-01T10:00", "--end", "2026-01-01T10:30",
+                        "--timezone", "Europe/Moscow"])
+    assert reschedule.timezone == "Europe/Moscow"

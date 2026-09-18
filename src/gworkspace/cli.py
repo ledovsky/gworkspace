@@ -75,7 +75,7 @@ def cmd_cal_create(args):
     attendees = [e.strip() for e in args.attendees.split(",")] if args.attendees else []
     calendar_create(creds, args.title, args.start, args.end, attendees,
                     description=args.description or "", all_day=args.all_day,
-                    conferencing=args.conferencing)
+                    conferencing=args.conferencing, timezone_name=args.timezone)
 
 
 def cmd_cal_availability(args):
@@ -99,7 +99,7 @@ def cmd_cal_decline(args):
 def cmd_cal_reschedule(args):
     from .gcalendar import calendar_reschedule
     creds = get_credentials(args.profile, required=("calendar",))
-    calendar_reschedule(creds, args.id, args.start, args.end)
+    calendar_reschedule(creds, args.id, args.start, args.end, timezone_name=args.timezone)
 
 
 def cmd_cal_add_attendee(args):
@@ -238,6 +238,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--conferencing", choices=["meet", "zoom", "none"], default="meet",
                    help="Video conferencing to attach (default: meet). "
                         "'zoom' mints the meeting via Zoom API - needs ~/.config/gworkspace/zoom.json (see zoom.py).")
+    p.add_argument("--timezone", default=None,
+                   help="IANA timezone for timed events, e.g. Europe/Moscow (default: host timezone)")
     p.set_defaults(func=cmd_cal_create)
 
     p = cal_sub.add_parser("availability", parents=[_profile_parser()], help="Check someone's free/busy")
@@ -249,6 +251,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("id", help="Event ID")
     p.add_argument("--start", required=True, help="New start datetime, e.g. 2026-06-03T14:35:00")
     p.add_argument("--end", required=True, help="New end datetime")
+    p.add_argument("--timezone", default=None,
+                   help="IANA timezone for the new time, e.g. Europe/Moscow (default: host timezone)")
     p.set_defaults(func=cmd_cal_reschedule)
 
     p = cal_sub.add_parser("accept", parents=[_profile_parser()], help="Accept an event invitation")

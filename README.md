@@ -149,17 +149,17 @@ gworkspace gmail delete --profile P <message-id>           # move to trash
 ```bash
 gworkspace calendar list --profile P [--date today|tomorrow|YYYY-MM-DD] [--calendar EMAIL] [--ids]
 gworkspace calendar create --profile P --title "..." --start 2026-05-02T10:00:00 --end 2026-05-02T10:30:00 \
-    [--attendees a@x.com,b@y.com] [--description "..."] [--conferencing meet|zoom|none]
+    [--attendees a@x.com,b@y.com] [--description "..."] [--conferencing meet|zoom|none] [--timezone Europe/Moscow]
 gworkspace calendar create --profile P --title "..." --start 2026-05-02 [--end 2026-05-03] --all-day
 gworkspace calendar availability --profile P --email EMAIL [--date ...]
-gworkspace calendar reschedule --profile P <event-id> --start ... --end ...
+gworkspace calendar reschedule --profile P <event-id> --start ... --end ... [--timezone Europe/Moscow]
 gworkspace calendar accept --profile P <event-id>
 gworkspace calendar decline --profile P <event-id>
 gworkspace calendar add-attendee --profile P <event-id> --email EMAIL
 gworkspace calendar cancel --profile P <event-id>
 ```
 
-- Datetimes are local ISO 8601 without offset; the machine's timezone is sent to Google.
+- Datetimes are local ISO 8601 without offset. By default the machine's timezone is sent to Google; use `--timezone` to override it explicitly.
 - `list --ids` adds *Organizer* and *ID* columns; the other commands need those IDs.
 - `list` expands recurring events, so an ID like `abc_20260727T080000Z` is one occurrence;
   rescheduling it moves only that occurrence.
