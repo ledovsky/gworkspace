@@ -150,6 +150,10 @@ def calendar_create(creds, title: str, start: str, end: str, attendees: list[str
                 agenda=description, host=_my_email(creds),
             )
             body["conferenceData"] = _zoom_conference_data(zoom_meeting)
+            # Also as plain text, the way Zoom's own Calendar add-on does it: the Zoom desktop app and
+            # non-Google calendar clients find the meeting by the link in location / description.
+            body["location"] = zoom_meeting["join_url"]
+            body["description"] = (f"{description}\n\n" if description else "") + _zoom_plain_text(zoom_meeting)
 
     if attendees:
         body["attendees"] = [{"email": e} for e in attendees]
@@ -163,14 +167,12 @@ def calendar_create(creds, title: str, start: str, end: str, attendees: list[str
         except HttpError as e:
             if zoom_meeting is None or e.resp.status != 400:
                 raise
-            # Calendar refused the explicit add-on conferenceData; fall back to a plain link.
+            # Calendar refused the explicit add-on conferenceData; the plain link stays.
             body.pop("conferenceData", None)
-            body["location"] = zoom_meeting["join_url"]
-            body["description"] = (f"{description}\n\n" if description else "") + _zoom_plain_text(zoom_meeting)
             event = svc.events().insert(
                 calendarId="primary", body=body, sendUpdates="all", conferenceDataVersion=0
             ).execute()
-            print("Note: Calendar rejected add-on conferenceData; Zoom link placed in location/description.")
+            print("Note: Calendar rejected add-on conferenceData; the Zoom link is in location/description only.")
     except Exception:
         if zoom_meeting is not None:
             from .zoom import delete_meeting

@@ -166,7 +166,8 @@ gworkspace calendar cancel --profile P <event-id>
   rescheduling it moves only that occurrence.
 - `--all-day`: `--end` is the inclusive last day; omit it for a single day.
 - `--conferencing meet` (default) attaches a Google Meet link. `zoom` mints a meeting through the
-  Zoom API and attaches it; see [Zoom](#zoom) for the one-time setup.
+  Zoom API and attaches it as the event's conference plus a plain link in location and description (the
+  Zoom desktop app and non-Google clients find it there); see [Zoom](#zoom) for the one-time setup.
 - `list --calendar EMAIL` shows a colleague's events when their calendar is shared with you;
   `availability` only returns busy slots but works for anyone in your Workspace domain.
 
