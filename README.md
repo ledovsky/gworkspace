@@ -77,13 +77,14 @@ gworkspace whoami --profile personal   # which account is this?
 ### Files on disk
 
 Everything lives under `~/.config/gworkspace/`; nothing is stored anywhere else and nothing is
-sent anywhere but Google.
+sent anywhere but Google (and Zoom, when `zoom.json` is configured).
 
 | Path | What | Written by |
 |---|---|---|
 | `credentials.json` | Your OAuth **client** (client id + secret) downloaded from Google Cloud. Identifies the app, not a user. | you, once |
 | `tokens/<profile>.json` | The user **token** for that profile: refresh token, current access token, its expiry, the granted scopes and the account email. This is the credential that reads your mail and files; mode 600. | `gworkspace auth`; refreshed in place by every command when the access token has expired |
-| `zoom.json` | Optional Zoom configuration for `calendar create --conferencing zoom`. | you |
+| `zoom.json` | Optional Zoom configuration for `calendar create --conferencing zoom`, see [Zoom](#zoom). | you |
+| `zoom-token.json` | Zoom user token (user mode only): rotating refresh token, access token, scopes; mode 600. | `gworkspace zoom auth`; refreshed in place |
 
 Refresh tokens do not expire on their own (with the app *In production*). To revoke a profile,
 delete its token file and remove the app under <https://myaccount.google.com/permissions>; a
@@ -165,11 +166,42 @@ gworkspace calendar cancel --profile P <event-id>
   rescheduling it moves only that occurrence.
 - `--all-day`: `--end` is the inclusive last day; omit it for a single day.
 - `--conferencing meet` (default) attaches a Google Meet link. `zoom` mints a meeting through the
-  Zoom API and attaches it; configure `~/.config/gworkspace/zoom.json` first, see the docstring in
-  `src/gworkspace/zoom.py` for the two supported modes (Server-to-Server OAuth app, or a static
-  personal meeting link).
+  Zoom API and attaches it; see [Zoom](#zoom) for the one-time setup.
 - `list --calendar EMAIL` shows a colleague's events when their calendar is shared with you;
   `availability` only returns busy slots but works for anyone in your Workspace domain.
+
+### Zoom
+
+`calendar create --conferencing zoom` needs `~/.config/gworkspace/zoom.json` (mode 600), in one of three modes:
+
+- **User mode** — a fresh Zoom meeting per event, hosted by you. No Zoom admin involved:
+  1. <https://marketplace.zoom.us/develop/create> → **General App**, *User-managed*. Work on the
+     *Development* tab only: the app is never published and only your own account can use it.
+  2. Turn **Use Public Client OAuth** on. Zoom accepts a loopback redirect only for public (PKCE) clients —
+     `http://localhost` is refused — so this flow has no client secret.
+  3. *OAuth Redirect URL* and *OAuth Allow List*: `http://127.0.0.1:3337/callback` (any free port).
+  4. *Scopes*: `meeting:write:meeting` and `meeting:delete:meeting` (cleanup when the calendar insert fails).
+  5. Save `{"client_id": "<Public Client ID>"}` as `zoom.json` (not the confidential *Client ID*), then run
+     `gworkspace zoom auth --port 3337` and approve in the browser. Headless machine: add `--no-browser`,
+     forward the port (`ssh -N -L 3337:127.0.0.1:3337 host`) and open the printed URL locally.
+- **Server-to-Server mode** — the same through a Server-to-Server OAuth app; your Zoom role needs admin-level
+  meeting permissions, otherwise the write scopes are not offered. Scopes `meeting:write:meeting:admin` and
+  `meeting:delete:meeting:admin`, app activated, then
+  `{"account_id": "...", "client_id": "...", "client_secret": "...", "user": "you@company.com"}`
+  (`user` = the Zoom login that hosts the meetings).
+- **Static mode** — no Zoom API, the same link (your Personal Meeting ID) on every event:
+  `{"join_url": "https://company.zoom.us/j/1234567890?pwd=...", "meeting_id": "1234567890", "password": "..."}`.
+
+```
+gworkspace zoom auth --port 3337 [--no-browser]   # user mode only: consent, writes zoom-token.json
+gworkspace zoom check                             # obtains a token, prints the granted scopes; touches no meeting
+```
+
+User mode keeps `zoom-token.json` (mode 600) next to `zoom.json`. Zoom rotates the refresh token on every
+refresh and drops it after 90 days without use — `zoom check` renews it; after an expiry run `zoom auth` again.
+`ZOOM_ACCOUNT_ID` / `ZOOM_CLIENT_ID` / `ZOOM_CLIENT_SECRET` / `ZOOM_USER` / `ZOOM_JOIN_URL` override the file.
+`calendar reschedule` and `calendar cancel` do not touch the Zoom meeting: the link stays valid after a
+reschedule, and a cancelled event leaves its meeting in Zoom.
 
 ### People
 

@@ -80,6 +80,10 @@ not create per-day blocks.
 
 No conference link is attached to all-day events. Timed events require `--end`.
 
+**Conferencing:** `--conferencing meet` is the default. `--conferencing zoom` mints a Zoom meeting and
+attaches its link; it needs the one-time Zoom setup (README, Zoom). `gworkspace zoom check` validates it;
+`gworkspace zoom auth` is an interactive browser consent — the user runs it, not the agent. Rescheduling keeps the same Zoom link; cancelling does not delete the Zoom meeting.
+
 **Seeing someone else's events:** two endpoints, different access levels:
 - `calendar availability --email <email>` uses the free/busy API: only busy intervals, never
   titles. Works for anyone in the user's Workspace domain.

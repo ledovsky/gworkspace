@@ -60,6 +60,29 @@ def cmd_gmail_delete(args):
     gmail_delete(creds, args.id)
 
 
+# Zoom
+def cmd_zoom_auth(args):
+    from .zoom import run_auth
+    run_auth(port=args.port, open_browser=not args.no_browser)
+
+
+def cmd_zoom_check(args):
+    from .zoom import ZOOM_CONFIG_FILE, check
+    info = check()
+    print(f"Config  : {ZOOM_CONFIG_FILE}")
+    print(f"Mode    : {info['mode']}")
+    if info["mode"] == "static":
+        print(f"Link    : {info['join_url']}")
+        return
+    print(f"Host    : {info['host'] or '(not set - the Google account email of the profile is used)'}")
+    print(f"Scopes  : {' '.join(info['scopes']) or '(none)'}")
+    if not info["can_create"]:
+        print("Error: the app has no scope to create meetings (add meeting:write:meeting; "
+              "Server-to-Server apps: meeting:write:meeting:admin).", file=sys.stderr)
+        sys.exit(1)
+    print("OK: token issued, the app can create meetings.")
+
+
 # Calendar
 def cmd_cal_list(args):
     from .gcalendar import calendar_list
@@ -271,6 +294,23 @@ def build_parser() -> argparse.ArgumentParser:
     p = cal_sub.add_parser("cancel", parents=[_profile_parser()], help="Cancel (delete) an event you organize")
     p.add_argument("id", help="Event ID")
     p.set_defaults(func=cmd_cal_cancel)
+
+    # ── zoom ───────────────────────────────────────────────────────────────
+    zoom = top.add_parser("zoom", help="Zoom setup used by `calendar create --conferencing zoom`")
+    zoom_sub = zoom.add_subparsers(dest="zoom_cmd", metavar="SUBCOMMAND")
+    zoom_sub.required = True
+
+    p = zoom_sub.add_parser("auth", help="User mode: authorize the Zoom app (browser consent), saves zoom-token.json")
+    p.add_argument("--port", type=int, required=True,
+                   help="Loopback port of the redirect URL registered in the Zoom app "
+                        "(http://127.0.0.1:PORT/callback). Headless: forward it with "
+                        "`ssh -N -L PORT:127.0.0.1:PORT host`")
+    p.add_argument("--no-browser", action="store_true",
+                   help="Do not open a browser; print the consent URL to open elsewhere")
+    p.set_defaults(func=cmd_zoom_auth)
+
+    p = zoom_sub.add_parser("check", help="Validate the Zoom setup: obtain a token and show the granted scopes")
+    p.set_defaults(func=cmd_zoom_check)
 
     # ── people ─────────────────────────────────────────────────────────────
     people = top.add_parser("people", help="People / contacts commands")
