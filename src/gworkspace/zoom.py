@@ -46,6 +46,7 @@ ZOOM_TOKEN_FILE = CONFIG_DIR / "zoom-token.json"
 AUTHORIZE_URL = "https://zoom.us/oauth/authorize"
 TOKEN_URL = "https://zoom.us/oauth/token"
 API_BASE = "https://api.zoom.us/v2"
+AUTO_RECORDING = ("none", "cloud", "local")
 CREATE_SCOPES = ("meeting:write:meeting", "meeting:write:meeting:admin", "meeting:write", "meeting:write:admin")
 
 
@@ -239,15 +240,21 @@ def _minutes_between(start: str, end: str) -> int:
 
 
 def create_meeting(topic: str, start: str, end: str, timezone: str,
-                   agenda: str = "", host: str | None = None) -> dict:
+                   agenda: str = "", host: str | None = None, auto_recording: str = "none") -> dict:
     """Schedule a Zoom meeting; returns Zoom's meeting object (id, join_url, password, ...).
 
     `start`/`end` are local ISO datetimes in `timezone` (same strings we send to Google Calendar).
     Host: user mode -> the consenting user ("me"); Server-to-Server -> zoom.json "user", else the
     `host` argument (such apps need a real user).
+    `auto_recording`: "none", "cloud" or "local"; always sent, so "none" also overrides an account-level
+    automatic recording default.
     """
+    if auto_recording not in AUTO_RECORDING:
+        raise ZoomError(f"Unknown auto_recording {auto_recording!r} (expected one of {', '.join(AUTO_RECORDING)})")
     cfg = load_config()
     if cfg["_mode"] == "static":
+        if auto_recording != "none":
+            raise ZoomError("Automatic recording needs the Zoom API; static mode reuses a fixed link.")
         return {
             "id": cfg.get("meeting_id", ""),
             "join_url": cfg["join_url"],
@@ -263,6 +270,7 @@ def create_meeting(topic: str, start: str, end: str, timezone: str,
         "duration": _minutes_between(start, end),
         "timezone": timezone,
         "agenda": agenda or "",
+        "settings": {"auto_recording": auto_recording},
     }
     return _request(
         "POST",

@@ -1,3 +1,5 @@
+import pytest
+
 from gworkspace import gcalendar
 
 
@@ -46,7 +48,8 @@ def test_zoom_link_goes_into_conference_data_location_and_description(monkeypatc
     service = _Service()
     monkeypatch.setattr(gcalendar, "_service", lambda creds: service)
     monkeypatch.setattr(gcalendar, "_my_email", lambda creds: "me@example.com")
-    monkeypatch.setattr(zoom, "create_meeting", lambda **kw: {
+    calls = []
+    monkeypatch.setattr(zoom, "create_meeting", lambda **kw: calls.append(kw) or {
         "id": 123, "join_url": "https://zoom.us/j/123?pwd=x", "password": "pw"})
 
     gcalendar.calendar_create(
@@ -59,3 +62,13 @@ def test_zoom_link_goes_into_conference_data_location_and_description(monkeypatc
     assert body["location"] == "https://zoom.us/j/123?pwd=x"
     assert body["description"] == ("Agenda\n\nJoin Zoom Meeting: https://zoom.us/j/123?pwd=x\n"
                                    "Meeting ID: 123\nPasscode: pw")
+    assert calls[0]["auto_recording"] == "none"
+
+
+def test_zoom_recording_requires_zoom_conferencing(monkeypatch):
+    monkeypatch.setattr(gcalendar, "_service", lambda creds: _Service())
+    with pytest.raises(ValueError, match="--zoom-recording"):
+        gcalendar.calendar_create(
+            creds=object(), title="Test", start="2026-01-01T10:00:00", end="2026-01-01T10:30:00",
+            attendees=[], conferencing="meet", zoom_recording="cloud",
+        )

@@ -150,7 +150,8 @@ gworkspace gmail delete --profile P <message-id>           # move to trash
 ```bash
 gworkspace calendar list --profile P [--date today|tomorrow|YYYY-MM-DD] [--calendar EMAIL] [--ids]
 gworkspace calendar create --profile P --title "..." --start 2026-05-02T10:00:00 --end 2026-05-02T10:30:00 \
-    [--attendees a@x.com,b@y.com] [--description "..."] [--conferencing meet|zoom|none] [--timezone Europe/Moscow]
+    [--attendees a@x.com,b@y.com] [--description "..."] [--conferencing meet|zoom|none] [--zoom-recording none|cloud|local] \
+    [--timezone Europe/Moscow]
 gworkspace calendar create --profile P --title "..." --start 2026-05-02 [--end 2026-05-03] --all-day
 gworkspace calendar availability --profile P --email EMAIL [--date ...]
 gworkspace calendar reschedule --profile P <event-id> --start ... --end ... [--timezone Europe/Moscow]
@@ -168,6 +169,9 @@ gworkspace calendar cancel --profile P <event-id>
 - `--conferencing meet` (default) attaches a Google Meet link. `zoom` mints a meeting through the
   Zoom API and attaches it as the event's conference plus a plain link in location and description (the
   Zoom desktop app and non-Google clients find it there); see [Zoom](#zoom) for the one-time setup.
+- `--zoom-recording cloud|local` makes the Zoom meeting start recording automatically once the host
+  joins. The default `none` disables it explicitly, even if the Zoom account records by default.
+  Not available in static mode.
 - `list --calendar EMAIL` shows a colleague's events when their calendar is shared with you;
   `availability` only returns busy slots but works for anyone in your Workspace domain.
 

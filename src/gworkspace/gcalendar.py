@@ -101,17 +101,20 @@ def _zoom_plain_text(meeting: dict) -> str:
 
 def calendar_create(creds, title: str, start: str, end: str, attendees: list[str],
                     description: str = "", all_day: bool = False, conferencing: str = "meet",
-                    timezone_name: str | None = None):
+                    timezone_name: str | None = None, zoom_recording: str = "none"):
     """Create an event on the primary calendar.
 
     conferencing: "meet" (Google Meet via Calendar's own createRequest), "zoom" (meeting minted via
     Zoom API, see zoom.py, then attached as conferenceData), or "none".
+    zoom_recording: Zoom automatic recording ("none", "cloud", "local"); only with conferencing "zoom".
     Prints the created event; does not return it.
     """
     svc = _service(creds)
 
     if conferencing not in ("meet", "zoom", "none"):
         raise ValueError(f"Unknown --conferencing value: {conferencing!r} (expected meet, zoom, or none)")
+    if zoom_recording != "none" and (conferencing != "zoom" or all_day):
+        raise ValueError("--zoom-recording needs a timed event with --conferencing zoom")
 
     zoom_meeting = None
     if all_day:
@@ -147,7 +150,7 @@ def calendar_create(creds, title: str, start: str, end: str, attendees: list[str
             from .zoom import create_meeting
             zoom_meeting = create_meeting(
                 topic=title, start=start, end=end, timezone=tz_name,
-                agenda=description, host=_my_email(creds),
+                agenda=description, host=_my_email(creds), auto_recording=zoom_recording,
             )
             body["conferenceData"] = _zoom_conference_data(zoom_meeting)
             # Also as plain text, the way Zoom's own Calendar add-on does it: the Zoom desktop app and

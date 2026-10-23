@@ -71,7 +71,23 @@ def test_create_meeting_posts_to_configured_host(config_file, requests):
     assert create_call["headers"]["Authorization"] == "Bearer tok"
     body = json.loads(create_call["data"])
     assert body == {"topic": "Sync", "type": 2, "start_time": "2026-01-01T10:00:00", "duration": 45,
-                    "timezone": "Europe/Moscow", "agenda": ""}
+                    "timezone": "Europe/Moscow", "agenda": "", "settings": {"auto_recording": "none"}}
+
+
+def test_create_meeting_auto_recording(config_file, requests):
+    config_file.write_text(json.dumps(USER_CFG))
+    zoom._save_token({"access_token": "a", "refresh_token": "r", "expires_in": 3600})
+    zoom.create_meeting("T", "2026-01-01T10:00:00", "2026-01-01T10:30:00", "UTC", auto_recording="cloud")
+    assert json.loads(requests[0]["data"])["settings"] == {"auto_recording": "cloud"}
+    with pytest.raises(zoom.ZoomError):
+        zoom.create_meeting("T", "2026-01-01T10:00:00", "2026-01-01T10:30:00", "UTC", auto_recording="always")
+
+
+def test_static_mode_refuses_auto_recording(config_file, requests):
+    config_file.write_text(json.dumps({"join_url": "https://zoom.us/j/1"}))
+    with pytest.raises(zoom.ZoomError):
+        zoom.create_meeting("T", "2026-01-01T10:00:00", "2026-01-01T10:30:00", "UTC", auto_recording="cloud")
+    assert requests == []
 
 
 def test_host_falls_back_to_argument(config_file, requests):

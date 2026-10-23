@@ -98,7 +98,8 @@ def cmd_cal_create(args):
     attendees = [e.strip() for e in args.attendees.split(",")] if args.attendees else []
     calendar_create(creds, args.title, args.start, args.end, attendees,
                     description=args.description or "", all_day=args.all_day,
-                    conferencing=args.conferencing, timezone_name=args.timezone)
+                    conferencing=args.conferencing, timezone_name=args.timezone,
+                    zoom_recording=args.zoom_recording)
 
 
 def cmd_cal_availability(args):
@@ -261,6 +262,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--conferencing", choices=["meet", "zoom", "none"], default="meet",
                    help="Video conferencing to attach (default: meet). "
                         "'zoom' mints the meeting via Zoom API - needs ~/.config/gworkspace/zoom.json (see zoom.py).")
+    p.add_argument("--zoom-recording", choices=["none", "cloud", "local"], default="none",
+                   help="Zoom automatic recording, only with --conferencing zoom (default: none, "
+                        "which also overrides an automatic recording default in the Zoom account)")
     p.add_argument("--timezone", default=None,
                    help="IANA timezone for timed events, e.g. Europe/Moscow (default: host timezone)")
     p.set_defaults(func=cmd_cal_create)

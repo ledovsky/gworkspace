@@ -48,6 +48,15 @@ def test_calendar_create_conferencing_choices():
                "--conferencing", "teams"])
 
 
+def test_calendar_zoom_recording_flag():
+    base = ["calendar", "create", "--profile", "p", "--title", "t",
+            "--start", "2026-01-01T10:00", "--end", "2026-01-01T10:30", "--conferencing", "zoom"]
+    assert parse(base).zoom_recording == "none"
+    assert parse(base + ["--zoom-recording", "cloud"]).zoom_recording == "cloud"
+    with pytest.raises(SystemExit):
+        parse(base + ["--zoom-recording", "always"])
+
+
 def test_calendar_timezone_flags():
     create = parse(["calendar", "create", "--profile", "p", "--title", "t",
                     "--start", "2026-01-01T10:00", "--end", "2026-01-01T10:30",

@@ -46,7 +46,7 @@ gworkspace gmail delete --profile P <message-id>
 
 ```
 gworkspace calendar list --profile P [--date today|tomorrow|YYYY-MM-DD] [--calendar <email>] [--ids]
-gworkspace calendar create --profile P --title "<t>" --start <iso> --end <iso> [--attendees a@x.com,b@y.com] [--conferencing meet|zoom|none]
+gworkspace calendar create --profile P --title "<t>" --start <iso> --end <iso> [--attendees a@x.com,b@y.com] [--conferencing meet|zoom|none] [--zoom-recording none|cloud|local]
 gworkspace calendar create --profile P --title "<t>" --start <YYYY-MM-DD> [--end <YYYY-MM-DD>] --all-day
 gworkspace calendar availability --profile P --email <email> [--date today|tomorrow|YYYY-MM-DD]
 gworkspace calendar reschedule --profile P <event-id> --start <iso> --end <iso>
@@ -83,6 +83,7 @@ No conference link is attached to all-day events. Timed events require `--end`.
 **Conferencing:** `--conferencing meet` is the default. `--conferencing zoom` mints a Zoom meeting and
 attaches its link; it needs the one-time Zoom setup (README, Zoom). `gworkspace zoom check` validates it;
 `gworkspace zoom auth` is an interactive browser consent — the user runs it, not the agent. Rescheduling keeps the same Zoom link; cancelling does not delete the Zoom meeting.
+`--zoom-recording cloud` turns on automatic cloud recording for that Zoom meeting; recording is off by default — use it only when the user asks for the meeting to be recorded.
 
 **Seeing someone else's events:** two endpoints, different access levels:
 - `calendar availability --email <email>` uses the free/busy API: only busy intervals, never
