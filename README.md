@@ -137,13 +137,21 @@ gworkspace --version
 
 ```bash
 gworkspace gmail list --profile P [--query "in:inbox"] [--count 10]
-gworkspace gmail read --profile P <message-id>
-gworkspace gmail send --profile P --to EMAIL --subject "..." --body "..."
+gworkspace gmail read --profile P <message-id>                 # body + numbered attachment list
+gworkspace gmail attachment --profile P <message-id> <n>|--all [--out DIR|FILE]
+gworkspace gmail send --profile P --to EMAIL --subject "..." --body "..." [--attach PATH ...]
 gworkspace gmail archive-read --profile P <message-id>     # mark read + remove from inbox
 gworkspace gmail delete --profile P <message-id>           # move to trash
 ```
 
 `--query` takes Gmail search syntax: `from:alice is:unread newer_than:2d`.
+
+- `read` ends with `Attachments:` (`1. report.pdf (application/pdf, 244 KB)`) when the message has
+  files; `attachment` takes those numbers. Named inline parts (scans, phone photos) count too.
+- `attachment` saves into the current directory, or into `--out` (created if missing). With one
+  attachment `--out` may be a file name. Existing files are never overwritten: `report-1.pdf`.
+- `send --attach` can repeat. Files go as is with a type from the extension; non-ASCII names
+  (`Договор.pdf`) keep their name. Total limit 25 MB; above that, `drive upload` and send the link.
 
 ### Calendar
 

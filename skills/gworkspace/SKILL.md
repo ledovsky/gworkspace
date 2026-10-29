@@ -35,12 +35,19 @@ Verify identity: `gworkspace whoami --profile <name>`
 ```
 gworkspace gmail list --profile P [--query "in:inbox"] [--count 10]
 gworkspace gmail read --profile P <message-id>
-gworkspace gmail send --profile P --to <email> --subject "<s>" --body "<b>"
+gworkspace gmail attachment --profile P <message-id> <n>|--all [--out <dir>|<file>]
+gworkspace gmail send --profile P --to <email> --subject "<s>" --body "<b>" [--attach <path> ...]
 gworkspace gmail archive-read --profile P <message-id>
 gworkspace gmail delete --profile P <message-id>
 ```
 
 `--query` accepts Gmail search syntax (`from:`, `is:unread`, `newer_than:2d`, etc.).
+
+**Attachments:** `read` ends with a numbered `Attachments:` list (name, type, size). Save one with
+`attachment <id> <n> --out <dir>` or all with `--all`; each saved file prints `Saved <path> (<n> bytes)`,
+use that path (a taken name gets `-1`, `-2`). Search mail with files by `has:attachment` or
+`filename:pdf`. To send files, repeat `--attach <path>`; 25 MB in total, otherwise upload to Drive
+and send the link. Confirm recipient, subject, body and file names before sending.
 
 ### Calendar
 

@@ -45,7 +45,13 @@ def cmd_gmail_read(args):
 def cmd_gmail_send(args):
     from .gmail import gmail_send
     creds = get_credentials(args.profile, required=("gmail",))
-    gmail_send(creds, args.to, args.subject, args.body)
+    gmail_send(creds, args.to, args.subject, args.body, attach=args.attach)
+
+
+def cmd_gmail_attachment(args):
+    from .gmail import gmail_attachment
+    creds = get_credentials(args.profile, required=("gmail",))
+    gmail_attachment(creds, args.id, index=args.index, all_=args.all, out=args.out)
 
 
 def cmd_gmail_archive_read(args):
@@ -225,7 +231,18 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--to", required=True, help="Recipient email")
     p.add_argument("--subject", required=True, help="Subject")
     p.add_argument("--body", required=True, help="Body text")
+    p.add_argument("--attach", action="append", default=[], metavar="PATH",
+                   help="File to attach; repeat for several (25 MB in total)")
     p.set_defaults(func=cmd_gmail_send)
+
+    p = gmail_sub.add_parser("attachment", parents=[_profile_parser()],
+                             help="Save attachments of an email (indices as listed by `read`)")
+    p.add_argument("id", help="Message ID")
+    p.add_argument("index", type=int, nargs="?", default=None, help="Attachment number from `read`")
+    p.add_argument("--all", action="store_true", help="Save every attachment")
+    p.add_argument("--out", "-o", default=None,
+                   help="Target directory, or file name for one attachment (default: current directory)")
+    p.set_defaults(func=cmd_gmail_attachment)
 
     p = gmail_sub.add_parser("archive-read", parents=[_profile_parser()], help="Mark as read and archive")
     p.add_argument("id", help="Message ID")

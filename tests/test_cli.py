@@ -66,3 +66,18 @@ def test_calendar_timezone_flags():
                         "--start", "2026-01-01T10:00", "--end", "2026-01-01T10:30",
                         "--timezone", "Europe/Moscow"])
     assert reschedule.timezone == "Europe/Moscow"
+
+
+def test_gmail_attachment_flags():
+    from gworkspace.cli import cmd_gmail_attachment
+    args = parse(["gmail", "attachment", "--profile", "p", "m1", "2", "--out", "/tmp/x"])
+    assert args.func is cmd_gmail_attachment
+    assert (args.id, args.index, args.all, args.out) == ("m1", 2, False, "/tmp/x")
+    args = parse(["gmail", "attachment", "--profile", "p", "m1", "--all"])
+    assert (args.index, args.all, args.out) == (None, True, None)
+
+
+def test_gmail_send_attach_is_repeatable():
+    base = ["gmail", "send", "--profile", "p", "--to", "a@x.com", "--subject", "s", "--body", "b"]
+    assert parse(base).attach == []
+    assert parse(base + ["--attach", "a.pdf", "--attach", "b.jpg"]).attach == ["a.pdf", "b.jpg"]
