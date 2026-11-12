@@ -38,7 +38,28 @@ def _fmt_event_time(event: dict) -> str:
     return start.get("date", "all-day")
 
 
-def calendar_list(creds, date_str: str = "today", calendar_id: str = "primary", show_ids: bool = False):
+def _response_status(event: dict) -> str:
+    """The calendar owner's RSVP status: accepted, declined, tentative, needsAction or unknown.
+
+    Events the owner organizes count as accepted even when Google omits a self-attendee entry.
+    """
+    if event.get("organizer", {}).get("self"):
+        return "accepted"
+    me = next((a for a in event.get("attendees", []) if a.get("self")), None)
+    if me:
+        return me.get("responseStatus", "unknown")
+    return "unknown"
+
+
+_ACCEPTED_LABELS = {"accepted": "Yes", "declined": "No", "needsAction": "No", "tentative": "Tentative"}
+
+
+def _fmt_accepted(event: dict) -> str:
+    return _ACCEPTED_LABELS.get(_response_status(event), "Unknown")
+
+
+def calendar_list(creds, date_str: str = "today", calendar_id: str = "primary", show_ids: bool = False,
+                  show_status: bool = False):
     svc = _service(creds)
     date = parse_date(date_str)
     time_min, time_max = day_range(date)
@@ -54,12 +75,24 @@ def calendar_list(creds, date_str: str = "today", calendar_id: str = "primary", 
     if not events:
         print(f"No events on {date}{who}.")
         return
+    headers = ["Event", "Time"]
+    if show_ids or show_status:
+        headers.append("Organizer")
+    if show_status:
+        headers.append("Accepted")
     if show_ids:
-        rows = [(e.get("summary", "(no title)"), _fmt_event_time(e), _fmt_organizer(e), e["id"]) for e in events]
-        print(fmt_table(rows, headers=("Event", "Time", "Organizer", "ID")))
-    else:
-        rows = [(e.get("summary", "(no title)"), _fmt_event_time(e)) for e in events]
-        print(fmt_table(rows, headers=("Event", "Time")))
+        headers.append("ID")
+    rows = []
+    for e in events:
+        row = [e.get("summary", "(no title)"), _fmt_event_time(e)]
+        if show_ids or show_status:
+            row.append(_fmt_organizer(e))
+        if show_status:
+            row.append(_fmt_accepted(e))
+        if show_ids:
+            row.append(e["id"])
+        rows.append(tuple(row))
+    print(fmt_table(rows, headers=tuple(headers)))
 
 
 def _date_only(value: str) -> date:

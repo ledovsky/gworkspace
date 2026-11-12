@@ -93,7 +93,8 @@ def cmd_zoom_check(args):
 def cmd_cal_list(args):
     from .gcalendar import calendar_list
     creds = get_credentials(args.profile, required=("calendar",))
-    calendar_list(creds, date_str=args.date, calendar_id=args.calendar, show_ids=args.ids)
+    calendar_list(creds, date_str=args.date, calendar_id=args.calendar, show_ids=args.ids,
+                  show_status=args.status)
 
 
 def cmd_cal_create(args):
@@ -262,6 +263,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--calendar", default="primary",
                    help="Calendar id or email (default: primary). Requires read access for non-primary.")
     p.add_argument("--ids", action="store_true", help="Show event IDs")
+    p.add_argument("--status", action="store_true",
+                   help="Show organizer and the calendar owner's RSVP (Accepted: Yes/No/Tentative/Unknown)")
     p.set_defaults(func=cmd_cal_list)
 
     p = cal_sub.add_parser("create", parents=[_profile_parser()], help="Create an event")

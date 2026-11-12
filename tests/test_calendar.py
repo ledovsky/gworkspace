@@ -72,3 +72,72 @@ def test_zoom_recording_requires_zoom_conferencing(monkeypatch):
             creds=object(), title="Test", start="2026-01-01T10:00:00", end="2026-01-01T10:30:00",
             attendees=[], conferencing="meet", zoom_recording="cloud",
         )
+
+
+class _ListEvents:
+    def __init__(self, items):
+        self.items = items
+
+    def list(self, **kwargs):
+        return _Request({"items": self.items})
+
+
+class _ListService:
+    def __init__(self, items):
+        self.events_api = _ListEvents(items)
+
+    def events(self):
+        return self.events_api
+
+
+def _timed(summary, **extra):
+    return {
+        "id": summary.lower(),
+        "summary": summary,
+        "start": {"dateTime": "2026-11-12T10:00:00+03:00"},
+        "end": {"dateTime": "2026-11-12T11:00:00+03:00"},
+        **extra,
+    }
+
+
+@pytest.mark.parametrize(
+    ("event", "expected"),
+    [
+        ({"organizer": {"self": True}}, "accepted"),
+        ({"organizer": {"email": "x@y"}, "attendees": [{"self": True, "responseStatus": "declined"}]}, "declined"),
+        ({"organizer": {"email": "x@y"}, "attendees": [{"email": "z@y", "responseStatus": "accepted"}]}, "unknown"),
+        ({"organizer": {"email": "x@y"}}, "unknown"),
+    ],
+)
+def test_response_status(event, expected):
+    assert gcalendar._response_status(event) == expected
+
+
+def test_calendar_list_status_columns(monkeypatch, capsys):
+    items = [
+        _timed("Mine", organizer={"self": True}),
+        _timed("Invite", organizer={"displayName": "Bob"},
+               attendees=[{"self": True, "responseStatus": "needsAction"}]),
+        _timed("Maybe", organizer={"email": "c@y"},
+               attendees=[{"self": True, "responseStatus": "tentative"}]),
+        _timed("Group", organizer={"email": "d@y"}),
+    ]
+    monkeypatch.setattr(gcalendar, "_service", lambda creds: _ListService(items))
+
+    gcalendar.calendar_list(object(), date_str="2026-11-12", show_status=True, show_ids=True)
+    out = capsys.readouterr().out
+
+    lines = out.splitlines()
+    assert "Accepted" in lines[0] and "Organizer" in lines[0] and "ID" in lines[0]
+    row = {line.split("|")[1].strip(): line for line in lines if line.startswith("|")}
+    assert "| me" in row["Mine"] and "Yes" in row["Mine"]
+    assert "Bob" in row["Invite"] and "| No" in row["Invite"]
+    assert "Tentative" in row["Maybe"]
+    assert "Unknown" in row["Group"]
+
+
+def test_calendar_list_default_columns_unchanged(monkeypatch, capsys):
+    monkeypatch.setattr(gcalendar, "_service", lambda creds: _ListService([_timed("Mine", organizer={"self": True})]))
+    gcalendar.calendar_list(object(), date_str="2026-11-12")
+    out = capsys.readouterr().out
+    assert "Accepted" not in out and "Organizer" not in out

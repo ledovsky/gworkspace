@@ -52,7 +52,7 @@ and send the link. Confirm recipient, subject, body and file names before sendin
 ### Calendar
 
 ```
-gworkspace calendar list --profile P [--date today|tomorrow|YYYY-MM-DD] [--calendar <email>] [--ids]
+gworkspace calendar list --profile P [--date today|tomorrow|YYYY-MM-DD] [--calendar <email>] [--ids] [--status]
 gworkspace calendar create --profile P --title "<t>" --start <iso> --end <iso> [--attendees a@x.com,b@y.com] [--conferencing meet|zoom|none] [--zoom-recording none|cloud|local]
 gworkspace calendar create --profile P --title "<t>" --start <YYYY-MM-DD> [--end <YYYY-MM-DD>] --all-day
 gworkspace calendar availability --profile P --email <email> [--date today|tomorrow|YYYY-MM-DD]
@@ -64,6 +64,10 @@ gworkspace calendar cancel --profile P <event-id>
 ```
 
 Datetimes are local ISO 8601, e.g. `2026-05-16T10:00:00`.
+
+**RSVP status:** `calendar list --status` adds `Organizer` and `Accepted` columns. `Accepted` is the
+calendar owner's response: `Yes`, `No` (declined or not answered yet), `Tentative`, or `Unknown`. Events
+the user organizes are `Yes`. Use `--status` whenever showing the user's own schedule; it combines with `--ids`.
 
 **Getting event IDs:** `reschedule`, `accept`, `decline`, `add-attendee`, `cancel` need an event
 ID. Get it with `calendar list --ids`, which adds an `Organizer` column (`me` when the user
@@ -143,7 +147,7 @@ gworkspace drive create --profile P --name <name> --type folder|doc|sheet [--fol
 
 **"List my meetings for tomorrow"**
 ```
-gworkspace calendar list --profile <profile> --date tomorrow
+gworkspace calendar list --profile <profile> --date tomorrow --status
 ```
 
 **"Find a slot for me and Alice tomorrow"**
