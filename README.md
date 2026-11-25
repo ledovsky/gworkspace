@@ -156,20 +156,32 @@ gworkspace gmail delete --profile P <message-id>           # move to trash
 ### Calendar
 
 ```bash
+# every calendar command also takes [--timezone TZ] (default Europe/Moscow, UTC+3)
 gworkspace calendar list --profile P [--date today|tomorrow|YYYY-MM-DD] [--calendar EMAIL] [--ids] [--status]
 gworkspace calendar create --profile P --title "..." --start 2026-05-02T10:00:00 --end 2026-05-02T10:30:00 \
-    [--attendees a@x.com,b@y.com] [--description "..."] [--conferencing meet|zoom|none] [--zoom-recording none|cloud|local] \
-    [--timezone Europe/Moscow]
+    [--attendees a@x.com,b@y.com] [--description "..."] [--conferencing meet|zoom|none] [--zoom-recording none|cloud|local]
 gworkspace calendar create --profile P --title "..." --start 2026-05-02 [--end 2026-05-03] --all-day
 gworkspace calendar availability --profile P --email EMAIL [--date ...]
-gworkspace calendar reschedule --profile P <event-id> --start ... --end ... [--timezone Europe/Moscow]
+gworkspace calendar reschedule --profile P <event-id> --start ... --end ...
 gworkspace calendar accept --profile P <event-id>
 gworkspace calendar decline --profile P <event-id>
 gworkspace calendar add-attendee --profile P <event-id> --email EMAIL
 gworkspace calendar cancel --profile P <event-id>
 ```
 
-- Datetimes are local ISO 8601 without offset. By default the machine's timezone is sent to Google; use `--timezone` to override it explicitly.
+- `--timezone TZ` sets one time zone for all printed and entered times: an IANA name (`Europe/Moscow`,
+  `Asia/Tashkent`) or a UTC offset (`+3`, `-4`, `+05:00`, `+0530`, `UTC+5`). Default: `Europe/Moscow`
+  (UTC+3), whatever the host time zone is. Fixed offsets have no daylight saving time; use an IANA name
+  for a zone that has it. A bad value exits with code 2 before any Google call.
+- `list` and `availability` print a first line `Timezone: Europe/Moscow (UTC+03:00)` and convert every
+  time to that zone, also for `--calendar EMAIL` of a colleague whose calendar is in another zone. The
+  day (`today`, `YYYY-MM-DD`) is 00:00–24:00 in that zone.
+- Events and busy slots that cross midnight are shown with their real start and end; a time on another
+  day gets its date (`2026-11-25 20:00–11:00`), an end at the next midnight prints as `24:00`, a
+  multi-day all-day event as `2026-11-24 – 2026-11-27`.
+- `create` / `reschedule` read `--start`/`--end` without an offset as time in `--timezone`; a value with
+  its own offset (`2026-05-02T10:00:00+05:00`) keeps it. Since 0.7.0 the default is `Europe/Moscow`,
+  not the host time zone. Both commands print the resulting time.
 - `list --ids` adds *Organizer* and *ID* columns; the other commands need those IDs.
 - `list --status` adds *Organizer* and *Accepted* columns: the calendar owner's RSVP as `Yes`, `No`
   (declined or not answered), `Tentative` or `Unknown`; events you organize are `Yes`.

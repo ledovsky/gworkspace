@@ -1,24 +1,21 @@
-import os
-from datetime import datetime, date, timedelta, timezone
-from pathlib import Path
+from datetime import datetime, date, time, timedelta, timezone
 
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
-from .utils import parse_date, day_range, fmt_table
+from .utils import Tz, parse_date, day_range, fmt_table, resolve_tz
 
 
 def _service(creds):
     return build("calendar", "v3", credentials=creds)
 
 
-def _local_tz_name() -> str:
-    p = Path("/etc/localtime")
-    if p.is_symlink():
-        target = os.readlink(p)
-        if "zoneinfo/" in target:
-            return target.split("zoneinfo/", 1)[1]
-    return "UTC"
+def _parse_dt(value: str) -> datetime:
+    return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+
+def _tzinfo(tz):
+    return tz.tz if isinstance(tz, Tz) else tz
 
 
 def _fmt_organizer(event: dict) -> str:
@@ -28,14 +25,55 @@ def _fmt_organizer(event: dict) -> str:
     return org.get("displayName") or org.get("email", "?")
 
 
-def _fmt_event_time(event: dict) -> str:
+def _fmt_event_time(event: dict, tz=None, day: date | None = None) -> str:
+    """Event time as `HH:MM–HH:MM`.
+
+    Without `tz`: the wall-clock time in the offset Google returned (0.6.0 behaviour, kept for old
+    callers). With `tz`: converted to that time zone; a start or end on another date than `day`
+    (default: the start date) gets its date, an end at 00:00 of the next day prints as `24:00`,
+    and a multi-day all-day event prints as `first – last`.
+    """
     start = event.get("start", {})
     end = event.get("end", {})
-    if "dateTime" in start:
-        s = datetime.fromisoformat(start["dateTime"]).strftime("%H:%M")
-        e = datetime.fromisoformat(end["dateTime"]).strftime("%H:%M")
-        return f"{s}–{e}"
-    return start.get("date", "all-day")
+    tz = _tzinfo(tz)
+    if tz is None:
+        if "dateTime" in start:
+            s = datetime.fromisoformat(start["dateTime"]).strftime("%H:%M")
+            e = datetime.fromisoformat(end["dateTime"]).strftime("%H:%M")
+            return f"{s}–{e}"
+        return start.get("date", "all-day")
+    if "dateTime" not in start:
+        if "date" not in start:
+            return "all-day"
+        first = date.fromisoformat(start["date"])
+        last = date.fromisoformat(end["date"]) - timedelta(days=1) if end.get("date") else first
+        return first.isoformat() if last <= first else f"{first.isoformat()} – {last.isoformat()}"
+    s = _parse_dt(start["dateTime"]).astimezone(tz)
+    e = _parse_dt(end["dateTime"]).astimezone(tz)
+    day = day or s.date()
+    s_txt = s.strftime("%H:%M") if s.date() == day else s.strftime("%Y-%m-%d %H:%M")
+    if e.date() == day:
+        e_txt = e.strftime("%H:%M")
+    elif e.date() == day + timedelta(days=1) and e.time() == time(0, 0):
+        e_txt = "24:00"
+    else:
+        e_txt = e.strftime("%Y-%m-%d %H:%M")
+    return f"{s_txt}–{e_txt}"
+
+
+def _overlaps_day(event: dict, tz, day: date) -> bool:
+    """True when the event overlaps [day 00:00, day+1 00:00) in `tz`."""
+    start, end = event.get("start", {}), event.get("end", {})
+    if "dateTime" not in start:
+        if "date" not in start:
+            return True
+        first = date.fromisoformat(start["date"])
+        after = date.fromisoformat(end["date"]) if end.get("date") else first + timedelta(days=1)
+        return first <= day < after
+    tz = _tzinfo(tz)
+    window_start = datetime.combine(day, time.min, tz)
+    window_end = datetime.combine(day + timedelta(days=1), time.min, tz)
+    return _parse_dt(start["dateTime"]) < window_end and _parse_dt(end["dateTime"]) > window_start
 
 
 def _response_status(event: dict) -> str:
@@ -59,19 +97,19 @@ def _fmt_accepted(event: dict) -> str:
 
 
 def calendar_list(creds, date_str: str = "today", calendar_id: str = "primary", show_ids: bool = False,
-                  show_status: bool = False):
+                  show_status: bool = False, timezone_name: str | None = None):
+    tz = resolve_tz(timezone_name)
     svc = _service(creds)
-    date = parse_date(date_str)
-    time_min, time_max = day_range(date)
-    result = svc.events().list(
-        calendarId=calendar_id,
-        timeMin=time_min,
-        timeMax=time_max,
-        singleEvents=True,
-        orderBy="startTime",
-    ).execute()
-    events = result.get("items", [])
+    date = parse_date(date_str, tz)
+    time_min, time_max = day_range(date, tz)
+    params = dict(calendarId=calendar_id, timeMin=time_min, timeMax=time_max,
+                  singleEvents=True, orderBy="startTime")
+    if tz.name:
+        params["timeZone"] = tz.name
+    result = svc.events().list(**params).execute()
+    events = [e for e in result.get("items", []) if _overlaps_day(e, tz, date)]
     who = "" if calendar_id == "primary" else f" for {calendar_id}"
+    print(tz.header())
     if not events:
         print(f"No events on {date}{who}.")
         return
@@ -84,7 +122,7 @@ def calendar_list(creds, date_str: str = "today", calendar_id: str = "primary", 
         headers.append("ID")
     rows = []
     for e in events:
-        row = [e.get("summary", "(no title)"), _fmt_event_time(e)]
+        row = [e.get("summary", "(no title)"), _fmt_event_time(e, tz, date)]
         if show_ids or show_status:
             row.append(_fmt_organizer(e))
         if show_status:
@@ -93,6 +131,36 @@ def calendar_list(creds, date_str: str = "today", calendar_id: str = "primary", 
             row.append(e["id"])
         rows.append(tuple(row))
     print(fmt_table(rows, headers=tuple(headers)))
+
+
+def _localize(value: str, tz: Tz) -> datetime:
+    """A --start/--end value: without an offset it is wall-clock time in `tz`; an own offset is kept."""
+    dt = _parse_dt(value)
+    return dt.replace(tzinfo=tz.tz) if dt.tzinfo is None else dt
+
+
+def _event_time_body(dt: datetime, tz: Tz) -> dict:
+    """Google event time: dateTime with an explicit offset; timeZone only for an IANA name."""
+    body = {"dateTime": dt.isoformat()}
+    if tz.name:
+        body["timeZone"] = tz.name
+    return body
+
+
+def _zoom_times(start_dt: datetime, end_dt: datetime, tz: Tz) -> tuple[str, str, str]:
+    """Zoom takes local times plus a zone name: the IANA name, or UTC for a fixed offset."""
+    zone, name = (tz.tz, tz.name) if tz.name else (timezone.utc, "UTC")
+    local = lambda dt: dt.astimezone(zone).replace(tzinfo=None).isoformat()
+    return local(start_dt), local(end_dt), name
+
+
+def _fmt_when(event: dict, tz: Tz) -> str:
+    """`2026-11-26 12:00–12:30 (Europe/Moscow)` for a timed event."""
+    start = event.get("start", {})
+    if "dateTime" not in start:
+        return _fmt_event_time(event, tz)
+    day = _parse_dt(start["dateTime"]).astimezone(tz.tz).date()
+    return f"{day.isoformat()} {_fmt_event_time(event, tz, day)} ({tz.label})"
 
 
 def _date_only(value: str) -> date:
@@ -165,11 +233,12 @@ def calendar_create(creds, title: str, start: str, end: str, attendees: list[str
     else:
         if not end:
             raise ValueError("--end is required for timed events (or pass --all-day)")
-        tz_name = timezone_name or _local_tz_name()
+        tz = resolve_tz(timezone_name)
+        start_dt, end_dt = _localize(start, tz), _localize(end, tz)
         body = {
             "summary": title,
-            "start": {"dateTime": start, "timeZone": tz_name},
-            "end": {"dateTime": end, "timeZone": tz_name},
+            "start": _event_time_body(start_dt, tz),
+            "end": _event_time_body(end_dt, tz),
             "description": description,
         }
         if conferencing == "meet":
@@ -181,8 +250,9 @@ def calendar_create(creds, title: str, start: str, end: str, attendees: list[str
             }
         elif conferencing == "zoom":
             from .zoom import create_meeting
+            zoom_start, zoom_end, zoom_tz = _zoom_times(start_dt, end_dt, tz)
             zoom_meeting = create_meeting(
-                topic=title, start=start, end=end, timezone=tz_name,
+                topic=title, start=zoom_start, end=zoom_end, timezone=zoom_tz,
                 agenda=description, host=_my_email(creds), auto_recording=zoom_recording,
             )
             body["conferenceData"] = _zoom_conference_data(zoom_meeting)
@@ -221,6 +291,8 @@ def calendar_create(creds, title: str, start: str, end: str, attendees: list[str
     print(f"Created: {event.get('summary')} ({event.get('id')})")
     if all_day:
         print(f"When: {_fmt_event_time(event)} (all-day)")
+    elif "dateTime" in event.get("start", {}):
+        print(f"When: {_fmt_when(event, tz)}")
     if conf_link:
         print(f"{conf_name}: {conf_link}")
     elif conferencing != "none" and not all_day:
@@ -228,24 +300,32 @@ def calendar_create(creds, title: str, start: str, end: str, attendees: list[str
         print("Conferencing requested but no link came back yet - check the event in Calendar.")
 
 
-def calendar_availability(creds, email: str, date_str: str = "today"):
+def calendar_availability(creds, email: str, date_str: str = "today", timezone_name: str | None = None):
+    tz = resolve_tz(timezone_name)
     svc = _service(creds)
-    date = parse_date(date_str)
-    time_min, time_max = day_range(date)
+    date = parse_date(date_str, tz)
+    time_min, time_max = day_range(date, tz)
+    # Free/busy cuts slots at timeMin/timeMax, so ask for one more day on each side and keep the
+    # slots that overlap the day: a block that began the evening before keeps its real start.
+    wide_min, _ = day_range(date - timedelta(days=1), tz)
+    _, wide_max = day_range(date + timedelta(days=1), tz)
     result = svc.freebusy().query(body={
-        "timeMin": time_min,
-        "timeMax": time_max,
+        "timeMin": wide_min,
+        "timeMax": wide_max,
         "items": [{"id": email}],
     }).execute()
-    busy = result.get("calendars", {}).get(email, {}).get("busy", [])
+    busy = [
+        slot for slot in result.get("calendars", {}).get(email, {}).get("busy", [])
+        if _parse_dt(slot["start"]) < _parse_dt(time_max) and _parse_dt(slot["end"]) > _parse_dt(time_min)
+    ]
+    print(tz.header())
     if not busy:
         print(f"{email} is free all day on {date}.")
         return
     rows = []
     for slot in busy:
-        s = datetime.fromisoformat(slot["start"]).strftime("%H:%M")
-        e = datetime.fromisoformat(slot["end"]).strftime("%H:%M")
-        rows.append(("Busy", f"{s}–{e}"))
+        as_event = {"start": {"dateTime": slot["start"]}, "end": {"dateTime": slot["end"]}}
+        rows.append(("Busy", _fmt_event_time(as_event, tz, date)))
     print(fmt_table(rows, headers=(email, "Busy slots")))
 
 
@@ -303,7 +383,7 @@ def calendar_cancel(creds, event_id: str):
 
 def calendar_reschedule(creds, event_id: str, start: str, end: str, timezone_name: str | None = None):
     svc = _service(creds)
-    tz_name = timezone_name or _local_tz_name()
+    tz = resolve_tz(timezone_name)
     cal_id, event = _find_event(svc, event_id)
     if event is None:
         print(f"Event {event_id} not found.")
@@ -312,12 +392,12 @@ def calendar_reschedule(creds, event_id: str, start: str, end: str, timezone_nam
         calendarId=cal_id,
         eventId=event_id,
         body={
-            "start": {"dateTime": start, "timeZone": tz_name},
-            "end": {"dateTime": end, "timeZone": tz_name},
+            "start": _event_time_body(_localize(start, tz), tz),
+            "end": _event_time_body(_localize(end, tz), tz),
         },
         sendUpdates="all",
     ).execute()
-    print(f"Rescheduled: {updated.get('summary')} → {_fmt_event_time(updated)}")
+    print(f"Rescheduled: {updated.get('summary')} → {_fmt_when(updated, tz)}")
 
 
 def calendar_add_attendee(creds, event_id: str, email: str):

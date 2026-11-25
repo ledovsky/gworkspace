@@ -65,6 +65,13 @@ gworkspace calendar cancel --profile P <event-id>
 
 Datetimes are local ISO 8601, e.g. `2026-05-16T10:00:00`.
 
+**Time zone:** every calendar command takes `--timezone TZ` (IANA name or offset such as `+3`, `+05:00`;
+default `Europe/Moscow`, UTC+3). `list` and `availability` print `Timezone: ...` first and give every time,
+colleagues' calendars included, in that zone, so times from different people compare directly; do not
+convert them again. `create` / `reschedule` read `--start`/`--end` in that zone. A time on another day
+carries its date (`2026-11-25 20:00–11:00` is a block from the evening before); `24:00` is midnight at
+the end of the day.
+
 **RSVP status:** `calendar list --status` adds `Organizer` and `Accepted` columns. `Accepted` is the
 calendar owner's response: `Yes`, `No` (declined or not answered yet), `Tentative`, or `Unknown`. Events
 the user organizes are `Yes`. Use `--status` whenever showing the user's own schedule; it combines with `--ids`.

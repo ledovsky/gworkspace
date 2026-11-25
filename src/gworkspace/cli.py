@@ -4,6 +4,7 @@ import sys
 from . import __version__
 from .auth import AuthError, get_credentials, run_auth
 from .drive import CREATE_TYPES, DOWNLOAD_FORMATS
+from .utils import DEFAULT_TIMEZONE, resolve_tz
 
 
 # ── shared --profile flag ──────────────────────────────────────────────────
@@ -12,6 +13,26 @@ def _profile_parser() -> argparse.ArgumentParser:
     p.add_argument("--profile", required=True,
                    help="Account profile (e.g. personal, work)")
     return p
+
+
+# ── shared --timezone flag (all calendar subcommands) ──────────────────────
+def _tz_parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(add_help=False)
+    p.add_argument("--timezone", default=DEFAULT_TIMEZONE,
+                   help="Time zone for printed and entered times: an IANA name (Europe/Moscow) or a UTC "
+                        f"offset (+3, -4, +05:00, UTC+5). Default: {DEFAULT_TIMEZONE} (UTC+3), "
+                        "whatever the host time zone is")
+    return p
+
+
+def _check_tz(args) -> str:
+    """Validate --timezone before any Google call; exit 2 with an error that names a bad value."""
+    try:
+        resolve_tz(args.timezone)
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(2)
+    return args.timezone
 
 
 # ── subcommand handlers ────────────────────────────────────────────────────
@@ -92,55 +113,63 @@ def cmd_zoom_check(args):
 # Calendar
 def cmd_cal_list(args):
     from .gcalendar import calendar_list
+    tz = _check_tz(args)
     creds = get_credentials(args.profile, required=("calendar",))
     calendar_list(creds, date_str=args.date, calendar_id=args.calendar, show_ids=args.ids,
-                  show_status=args.status)
+                  show_status=args.status, timezone_name=tz)
 
 
 def cmd_cal_create(args):
     from .gcalendar import calendar_create
+    tz = _check_tz(args)
     # the Zoom path looks up the account email through Gmail
     required = ("calendar", "gmail") if args.conferencing == "zoom" else ("calendar",)
     creds = get_credentials(args.profile, required=required)
     attendees = [e.strip() for e in args.attendees.split(",")] if args.attendees else []
     calendar_create(creds, args.title, args.start, args.end, attendees,
                     description=args.description or "", all_day=args.all_day,
-                    conferencing=args.conferencing, timezone_name=args.timezone,
+                    conferencing=args.conferencing, timezone_name=tz,
                     zoom_recording=args.zoom_recording)
 
 
 def cmd_cal_availability(args):
     from .gcalendar import calendar_availability
+    tz = _check_tz(args)
     creds = get_credentials(args.profile, required=("calendar",))
-    calendar_availability(creds, args.email, date_str=args.date)
+    calendar_availability(creds, args.email, date_str=args.date, timezone_name=tz)
 
 
 def cmd_cal_accept(args):
     from .gcalendar import calendar_accept
+    _check_tz(args)
     creds = get_credentials(args.profile, required=("calendar", "gmail"))
     calendar_accept(creds, args.id)
 
 
 def cmd_cal_decline(args):
     from .gcalendar import calendar_decline
+    _check_tz(args)
     creds = get_credentials(args.profile, required=("calendar", "gmail"))
     calendar_decline(creds, args.id)
 
 
 def cmd_cal_reschedule(args):
     from .gcalendar import calendar_reschedule
+    tz = _check_tz(args)
     creds = get_credentials(args.profile, required=("calendar",))
-    calendar_reschedule(creds, args.id, args.start, args.end, timezone_name=args.timezone)
+    calendar_reschedule(creds, args.id, args.start, args.end, timezone_name=tz)
 
 
 def cmd_cal_add_attendee(args):
     from .gcalendar import calendar_add_attendee
+    _check_tz(args)
     creds = get_credentials(args.profile, required=("calendar",))
     calendar_add_attendee(creds, args.id, args.email)
 
 
 def cmd_cal_cancel(args):
     from .gcalendar import calendar_cancel
+    _check_tz(args)
     creds = get_credentials(args.profile, required=("calendar",))
     calendar_cancel(creds, args.id)
 
@@ -258,7 +287,7 @@ def build_parser() -> argparse.ArgumentParser:
     cal_sub = cal.add_subparsers(dest="cal_cmd", metavar="SUBCOMMAND")
     cal_sub.required = True
 
-    p = cal_sub.add_parser("list", parents=[_profile_parser()], help="List events")
+    p = cal_sub.add_parser("list", parents=[_profile_parser(), _tz_parser()], help="List events")
     p.add_argument("--date", default="today", help="Date: today, tomorrow, or YYYY-MM-DD")
     p.add_argument("--calendar", default="primary",
                    help="Calendar id or email (default: primary). Requires read access for non-primary.")
@@ -267,7 +296,7 @@ def build_parser() -> argparse.ArgumentParser:
                    help="Show organizer and the calendar owner's RSVP (Accepted: Yes/No/Tentative/Unknown)")
     p.set_defaults(func=cmd_cal_list)
 
-    p = cal_sub.add_parser("create", parents=[_profile_parser()], help="Create an event")
+    p = cal_sub.add_parser("create", parents=[_profile_parser(), _tz_parser()], help="Create an event")
     p.add_argument("--title", required=True)
     p.add_argument("--start", required=True,
                    help="ISO datetime (2026-05-02T10:00:00), or a date (2026-05-02) with --all-day")
@@ -285,37 +314,33 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--zoom-recording", choices=["none", "cloud", "local"], default="none",
                    help="Zoom automatic recording, only with --conferencing zoom (default: none, "
                         "which also overrides an automatic recording default in the Zoom account)")
-    p.add_argument("--timezone", default=None,
-                   help="IANA timezone for timed events, e.g. Europe/Moscow (default: host timezone)")
     p.set_defaults(func=cmd_cal_create)
 
-    p = cal_sub.add_parser("availability", parents=[_profile_parser()], help="Check someone's free/busy")
+    p = cal_sub.add_parser("availability", parents=[_profile_parser(), _tz_parser()], help="Check someone's free/busy")
     p.add_argument("--email", required=True, help="Email to check")
     p.add_argument("--date", default="today")
     p.set_defaults(func=cmd_cal_availability)
 
-    p = cal_sub.add_parser("reschedule", parents=[_profile_parser()], help="Change start/end time of an event")
+    p = cal_sub.add_parser("reschedule", parents=[_profile_parser(), _tz_parser()], help="Change start/end time of an event")
     p.add_argument("id", help="Event ID")
     p.add_argument("--start", required=True, help="New start datetime, e.g. 2026-06-03T14:35:00")
     p.add_argument("--end", required=True, help="New end datetime")
-    p.add_argument("--timezone", default=None,
-                   help="IANA timezone for the new time, e.g. Europe/Moscow (default: host timezone)")
     p.set_defaults(func=cmd_cal_reschedule)
 
-    p = cal_sub.add_parser("accept", parents=[_profile_parser()], help="Accept an event invitation")
+    p = cal_sub.add_parser("accept", parents=[_profile_parser(), _tz_parser()], help="Accept an event invitation")
     p.add_argument("id", help="Event ID")
     p.set_defaults(func=cmd_cal_accept)
 
-    p = cal_sub.add_parser("decline", parents=[_profile_parser()], help="Decline an event invitation")
+    p = cal_sub.add_parser("decline", parents=[_profile_parser(), _tz_parser()], help="Decline an event invitation")
     p.add_argument("id", help="Event ID")
     p.set_defaults(func=cmd_cal_decline)
 
-    p = cal_sub.add_parser("add-attendee", parents=[_profile_parser()], help="Add attendee to event")
+    p = cal_sub.add_parser("add-attendee", parents=[_profile_parser(), _tz_parser()], help="Add attendee to event")
     p.add_argument("id", help="Event ID")
     p.add_argument("--email", required=True)
     p.set_defaults(func=cmd_cal_add_attendee)
 
-    p = cal_sub.add_parser("cancel", parents=[_profile_parser()], help="Cancel (delete) an event you organize")
+    p = cal_sub.add_parser("cancel", parents=[_profile_parser(), _tz_parser()], help="Cancel (delete) an event you organize")
     p.add_argument("id", help="Event ID")
     p.set_defaults(func=cmd_cal_cancel)
 
